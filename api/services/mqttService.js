@@ -2,12 +2,12 @@ let mqtt = require('mqtt')
 let client  = mqtt.connect('mqtt://192.168.178.14')
 
 let devices = [
-    {id: 'switch1', label: 'Lamp kast', isAll: false, commands: ['POWER'], status: ['OFF'], canSchedule: true},
-    {id: 'switch2', label: 'Switch voor', isAll: false, commands: ['POWER'], status: ['OFF'],
+    {id: 'switch1', label: 'Lamp kast', isAll: false, visible: true, commands: ['POWER'], status: ['OFF'], canSchedule: true},
+    {id: 'switch2', label: 'Switch voor', isAll: false, visible: false, commands: ['POWER'], status: ['OFF'],
         forward: { to: 'tasmotas', command: 'POWER' }, canSchedule: false},
-    {id: 'switch3', label: 'Lampje tv', isAll: false, commands: ['POWER'], status: ['OFF'], canSchedule: true},
-    {id: 'lampvoor', label: 'Lamp voor', isAll: false, commands: ['POWER', 'Dimmer', 'Color'], status: ['OFF', '100', 'FFFF'], canSchedule: true},
-    {id: 'tasmotas', label: 'Alle lampen', isAll: true, commands: ['POWER'], status: ['OFF'], canSchedule: false},
+    {id: 'switch3', label: 'Lampje tv', isAll: false, visible: true, commands: ['POWER'], status: ['OFF'], canSchedule: true},
+    {id: 'lampvoor', label: 'Lamp voor', isAll: false, visible: true, commands: ['POWER', 'Dimmer', 'Color'], status: ['OFF', '100', 'FFFF'], canSchedule: true},
+    {id: 'tasmotas', label: 'Alle lampen', isAll: true, visible: true, commands: ['POWER'], status: ['OFF'], canSchedule: false},
 ];
 
 exports.init = function() {
