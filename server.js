@@ -1,5 +1,5 @@
-var cors = require('cors');
-var express = require('express'),
+let cors = require('cors');
+let express = require('express'),
     app = express(),
     port = process.env.PORT || 3000,
     bodyParser = require('body-parser');
@@ -7,17 +7,20 @@ var express = require('express'),
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.disable('x-powered-by');
 
-var mqttService = require('./api/services/mqttService')
+let mqttService = require('./api/services/mqttService')
 mqttService.init();
+let schedulingService = require('./api/services/schedulingService');
+schedulingService.init();
 
-var routes = require('./api/routes/deviceRoutes'); //importing route
-routes(app); //register the route
+let deviceRoutes = require('./api/routes/deviceRoutes');
+deviceRoutes(app);
+let schedulingRoutes = require('./api/routes/schedulingRoutes');
+schedulingRoutes(app);
 
 const html = './dist/ha-angular/';
-// Static content
 app.use(express.static(html));
-// Default route
 app.use(function(req, res) {
    res.sendFile(html + 'index.html');
 });
