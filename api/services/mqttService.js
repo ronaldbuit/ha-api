@@ -48,7 +48,7 @@ let devices = [
             {
                 label: 'Alle lampen',
                 isAll: false,
-                visible: true,
+                visible: false,
                 command: 'POWER1',
                 status: 'OFF',
                 canSchedule: false,
