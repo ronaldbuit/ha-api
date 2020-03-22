@@ -40,14 +40,16 @@ exports.setFromHome = function(setFromHome) {
     let devices = mqttService.getDevices();
 
     devices.forEach(function(device) {
-        exports.scheduleDevice(device, false);
+        device.commands.forEach(function(command) {
+            exports.scheduleDevice(device, command, false);
+        });
     });
 }
 
-exports.scheduleDevice = function(device, planForNextDay) {
-    if (device.canSchedule) {
+exports.scheduleDevice = function(device, command, planForNextDay) {
+    if (command.canSchedule) {
         // first always remove running schedules for device
-        exports.removeDeviceFromPlanning(device)
+        exports.removeDeviceFromPlanning(device, command)
         if (fromHome) {
             const now = moment();
             let sunset = moment(sun.getSunset(long, lat));
@@ -59,20 +61,20 @@ exports.scheduleDevice = function(device, planForNextDay) {
                 sunset.add(getRandom(0, 15), 'm');
                 offDateTime = getOffDateTime(true).add(1, 'd');
 
-                addJob('on', sunset.toDate(), device);
-                addJob('off', offDateTime.toDate(), device);
+                addJob('on', sunset.toDate(), device, command);
+                addJob('off', offDateTime.toDate(), device, command);
             } else if (now > sunset) {
                 // plan only off
                 offDateTime = getOffDateTime(true);
-                addJob('off', offDateTime.toDate(), device);
+                addJob('off', offDateTime.toDate(), device, command);
             } else {
                 // plan for today
                 sunset = moment(sun.getSunset(long, lat)).subtract(20, 'm');
                 sunset.add(getRandom(0, 15), 'm');
                 offDateTime = getOffDateTime(true);
 
-                addJob('on', sunset.toDate(), device);
-                addJob('off', offDateTime.toDate(), device);
+                addJob('on', sunset.toDate(), device, command);
+                addJob('off', offDateTime.toDate(), device, command);
             }
         }
     }
@@ -88,21 +90,22 @@ function getOffDateTime(random) {
     }
 }
 
-function addJob(type, dateTime, device) {
-    let job = schedule.scheduleJob(type + '-' + device.id, dateTime, function() {
+function addJob(type, dateTime, device, command) {
+    const jobId = device.topic + '-' + command.command;
+    let job = schedule.scheduleJob(type + '-' + jobId, dateTime, function() {
         if (fromHome) {
-            mqttService.updateDevice({id: device.id, command: 'POWER', value: type});
+            mqttService.updateDevice({topic: device.topic, command: command.command, value: type});
             if (type === 'off') {
                 // plan for next day
-                exports.scheduleDevice(device, true);
+                exports.scheduleDevice(device, command, true);
             }
         }
     });
     if (type === 'on') {
-        device.nextOn = job.nextInvocation();
+        command.nextOn = job.nextInvocation();
     }
     if (type === 'off') {
-        device.nextOff = job.nextInvocation();
+        command.nextOff = job.nextInvocation();
     }
 }
 
@@ -110,17 +113,19 @@ function getRandom(min, max) {
     return Math.floor(Math.random() * (max - min) ) + min;
 }
 
-exports.removeDeviceFromPlanning = function(device) {
-    if (device.nextOn) {
-        device.nextOn = null;
+exports.removeDeviceFromPlanning = function(device, command) {
+    if (command.nextOn) {
+        command.nextOn = null;
     }
-    if (device.nextOff) {
-        device.nextOff = null;
+    if (command.nextOff) {
+        command.nextOff = null;
     }
-    if (schedule.scheduledJobs['off-' + device.id]) {
-        schedule.scheduledJobs['off-' + device.id].cancel();
+
+    const jobId = device.topic + '-' + command.command;
+    if (schedule.scheduledJobs['off-' + jobId]) {
+        schedule.scheduledJobs['off-' + jobId].cancel();
     }
-    if (schedule.scheduledJobs['on-' + device.id]) {
-        schedule.scheduledJobs['on-' + device.id].cancel();
+    if (schedule.scheduledJobs['on-' + jobId]) {
+        schedule.scheduledJobs['on-' + jobId].cancel();
     }
 }

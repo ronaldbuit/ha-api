@@ -2,22 +2,98 @@ let mqtt = require('mqtt')
 let client  = mqtt.connect('mqtt://192.168.178.14')
 
 let devices = [
-    {id: 'switch1', label: 'Lamp kast', isAll: false, visible: true, commands: ['POWER'], status: ['OFF'], canSchedule: true},
-    {id: 'switch2', label: 'Switch voor', isAll: false, visible: false, commands: ['POWER'], status: ['OFF'],
-        forward: { to: 'tasmotas', command: 'POWER' }, canSchedule: false},
-    {id: 'switch3', label: 'Lampje tv', isAll: false, visible: true, commands: ['POWER'], status: ['OFF'], canSchedule: true},
-    {id: 'lampvoor', label: 'Lamp voor', isAll: false, visible: true, commands: ['POWER', 'Dimmer', 'Color'], status: ['OFF', '100', 'FFFF'], canSchedule: true},
-    {id: 'tasmotas', label: 'Alle lampen', isAll: true, visible: true, commands: ['POWER'], status: ['OFF'], canSchedule: false},
+    {
+        topic: 'switch1', commands: [
+            {
+                label: 'Lamp kast',
+                isAll: true,
+                visible: true,
+                command: 'POWER',
+                status: 'OFF',
+                canSchedule: true
+            }]
+    },
+    {
+        topic: 'switch2', commands: [
+            {
+                label: 'Switch voor',
+                isAll: false,
+                visible: false,
+                command: 'POWER',
+                status: 'OFF',
+                canSchedule: false
+            }]
+    },
+    {
+        topic: 'switch3', commands: [
+            {
+                label: 'Lampje tv',
+                isAll: true,
+                visible: true,
+                command: 'POWER',
+                status: 'OFF',
+                canSchedule: true
+            }]
+    },
+    {
+        topic: 'switchmain', commands: [
+            {
+                label: 'Lamp tafel',
+                isAll: true,
+                visible: true,
+                command: 'POWER2',
+                status: 'OFF',
+                canSchedule: true
+            },
+            {
+                label: 'Alle lampen',
+                isAll: false,
+                visible: true,
+                command: 'POWER1',
+                status: 'OFF',
+                canSchedule: false,
+                forward: {action: 'all', excludes: [{topic: 'switchmain', command: 'POWER2'}]},
+            }]
+    },
+    {
+        topic: 'lampvoor', commands: [
+            {
+                label: 'Lamp voor',
+                isAll: true,
+                visible: true,
+                command: 'POWER',
+                status: 'OFF',
+                canSchedule: true
+            },
+            {
+                label: 'Lamp voor Dimmer',
+                isAll: false,
+                visible: true,
+                command: 'Dimmer',
+                status: '100',
+                canSchedule: false
+            },
+            {
+                label: 'Lamp voor Color',
+                isAll: false,
+                visible: true,
+                command: 'Color',
+                status: 'FFFF',
+                canSchedule: false
+            }]
+    }
 ];
+
+let party = false;
 
 exports.init = function() {
     client.on('connect', function () {
         devices.forEach(function(s) {
-            client.subscribe('stat/' + s.id + '/RESULT', function (err) {
+            client.subscribe('stat/' + s.topic + '/RESULT', function (err) {
                 if (err) {
                     console.log('error: ' + err);
                 } else {
-                    console.log('connected: ' + s.id);
+                    console.log('connected: ' + s.topic);
                 }
             });
         });
@@ -25,29 +101,28 @@ exports.init = function() {
 
     client.on('message', function (topic, message) {
         devices.forEach(function(s) {
-            if (topic.indexOf(s.id) > 0) {
+            if (topic.indexOf(s.topic) > 0) {
                 let status = JSON.parse(message.toString());
-                let forward = undefined;
+
                 Object.getOwnPropertyNames(status).forEach(function(p) {
-                    let pIndex = s.commands.indexOf(p);
-                    if (pIndex >= 0) {
-                       if (s.forward && s.forward.command === p && s.status[pIndex] !== status[p]) {
-                           forward = s.forward;
-                           forward.value = status[p];
-                       }
-                       s.status[pIndex] = status[p];
-                   }
+                    s.commands.forEach(function(command) {
+                        if (command.command === p) {
+                            command.status = status[p];
+
+                            if (command.forward && command.forward.action === 'all') {
+                                exports.all({value: command.status}, true, command.forward.excludes);
+                                //console.log(command.status);
+                            }
+                        }
+                    });
                 });
-                if (forward) {
-                    client.publish('cmnd/' + forward.to + '/' + forward.command, forward.value);
-                }
             }
         });
     });
 
     devices.forEach(function(s) {
         s.commands.forEach(function(c) {
-            client.publish('cmnd/' + s.id + '/' + c, '');
+            client.publish('cmnd/' + s.topic + '/' + c.command, '');
         })
     });
 }
@@ -56,13 +131,66 @@ exports.getDevices = function() {
     return devices;
 }
 
-exports.getDevice = function(deviceId) {
+exports.getDevice = function(topic) {
     return devices.find(function(s) {
-        return s.id == deviceId;
+        return s.topic == topic;
     });
 }
 
+exports.all = function(action, forwarded, excludes) {
+    devices.forEach(function(device) {
+        device.commands.forEach(function(command) {
+            if ((command.isAll || (!forwarded && command.forward && command.forward.action === 'all')) &&
+                (!excludes || !excludes.some(function(c) { return c.command === command.command} ))) {
+                exports.updateDevice({
+                    topic: device.topic,
+                    command: command.command,
+                    value: action.value
+                });
+            }
+        });
+    });
+
+    return '';
+}
+
 exports.updateDevice= function(deviceToUpdate) {
-    client.publish('cmnd/' + deviceToUpdate.id + '/' + deviceToUpdate.command, deviceToUpdate.value);
+    client.publish('cmnd/' + deviceToUpdate.topic + '/' + deviceToUpdate.command, deviceToUpdate.value);
     return deviceToUpdate;
+}
+
+exports.party = function()
+{
+    if (!party) {
+        party = true;
+        devices.forEach(function(device) {
+            device.commands.forEach(function (command) {
+                if (command.command.indexOf('POWER') === 0 && !command.forward) {
+                    changeStatus(device, command, 'on');
+                }
+            });
+        });
+    } else {
+        party = false;
+    }
+    return '';
+}
+
+function changeStatus(device, command, status) {
+    let r = Math.floor(Math.random() * 1000) + 100;
+    setTimeout(function () {
+        if (party) {
+            exports.updateDevice({
+                topic: device.topic,
+                command: command.command,
+                value: status
+            });
+
+            if (status === 'on') {
+                changeStatus(device, command, 'off');
+            } else {
+                changeStatus(device, command, 'on');
+            }
+        }
+    }, r)
 }

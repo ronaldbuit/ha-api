@@ -6,9 +6,17 @@ exports.list = function(req, res) {
 };
 
 exports.read = function(req, res) {
-    res.json(mqttService.getDevice(req.params.deviceId));
+    res.json(mqttService.getDevice(req.params.topic));
 };
 
 exports.update = function (req, res) {
     res.json(mqttService.updateDevice(req.body));
 };
+
+exports.all = function (req, res) {
+    res.json(mqttService.all(req.body));
+}
+
+exports.party = function (req, res) {
+    res.json(mqttService.party());
+}
