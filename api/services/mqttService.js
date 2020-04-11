@@ -39,11 +39,11 @@ let devices = [
         topic: 'switchmain', commands: [
             {
                 label: 'Lamp tafel',
-                isAll: true,
+                isAll: false,
                 visible: true,
                 command: 'POWER2',
                 status: 'OFF',
-                canSchedule: true
+                canSchedule: false
             },
             {
                 label: 'Alle lampen',
@@ -85,6 +85,7 @@ let devices = [
 ];
 
 let party = false;
+let switchAllOnOff = false;
 
 exports.init = function() {
     client.on('connect', function () {
@@ -101,18 +102,16 @@ exports.init = function() {
 
     client.on('message', function (topic, message) {
         devices.forEach(function(s) {
-            if (topic.indexOf(s.topic) > 0) {
+            if (topic.indexOf('/' + s.topic + '/') > 0) {
                 let status = JSON.parse(message.toString());
-
                 Object.getOwnPropertyNames(status).forEach(function(p) {
                     s.commands.forEach(function(command) {
                         if (command.command === p) {
                             command.status = status[p];
-
-                            if (command.forward && command.forward.action === 'all') {
+                            if (command.forward && command.forward.action === 'all' && !switchAllOnOff) {
                                 exports.all({value: command.status}, true, command.forward.excludes);
-                                //console.log(command.status);
                             }
+                            switchAllOnOff = false;
                         }
                     });
                 });
@@ -125,6 +124,37 @@ exports.init = function() {
             client.publish('cmnd/' + s.topic + '/' + c.command, '');
         })
     });
+
+    checkAllOnStatus();
+
+    function checkAllOnStatus() {
+        let oneOn = false;
+        let forwardCommand = null;
+        let forwardDevice = null;
+        devices.forEach(function(s) {
+            s.commands.forEach(function(command) {
+                if (command.isAll && command.command.indexOf('POWER') === 0 && command.status === 'ON') {
+                    oneOn = true;
+                }
+                if (command.forward && command.forward.action === 'all') {
+                    forwardCommand = command;
+                    forwardDevice = s;
+                }
+            });
+        });
+
+        if (forwardCommand && forwardDevice) {
+            if (oneOn && forwardCommand.status === 'OFF') {
+                switchAllOnOff = true;
+                client.publish('cmnd/' + forwardDevice.topic + '/' + forwardCommand.command, 'ON');
+            } else if (!oneOn && forwardCommand.status === 'ON') {
+                switchAllOnOff = true;
+                client.publish('cmnd/' + forwardDevice.topic + '/' + forwardCommand.command, 'OFF');
+            }
+        }
+
+        setTimeout(checkAllOnStatus, 1000);
+    }
 }
 
 exports.getDevices = function() {
