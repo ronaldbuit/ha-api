@@ -5,9 +5,9 @@ let devices = [
     {
         topic: 'switch1', commands: [
             {
-                label: 'Lamp kast',
+                label: 'Lamp kast old',
                 isAll: true,
-                visible: true,
+                visible: false,
                 command: 'POWER',
                 status: 'OFF',
                 canSchedule: true
@@ -16,12 +16,12 @@ let devices = [
     {
         topic: 'switch2', commands: [
             {
-                label: 'Switch voor',
-                isAll: false,
-                visible: false,
+                label: 'Lamp kast',
+                isAll: true,
+                visible: true,
                 command: 'POWER',
                 status: 'OFF',
-                canSchedule: false
+                canSchedule: true
             }]
     },
     {
