@@ -81,7 +81,7 @@ exports.scheduleDevice = function(device, command, planForNextDay) {
 }
 
 function getOffDateTime(random) {
-    const hour = 22;
+    const hour = 23;
     const minutes = 0;
     if (random) {
         return moment().hour(hour).minute(minutes).subtract(5, 'm').add(getRandom(0, 15), 'm');

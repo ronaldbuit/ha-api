@@ -81,7 +81,18 @@ let devices = [
                 status: 'FFFF',
                 canSchedule: false
             }]
-    }
+    },
+    {
+        topic: 'lampvoor', commands: [
+            {
+                label: 'Lampje achter',
+                isAll: true,
+                visible: true,
+                command: 'POWER',
+                status: 'OFF',
+                canSchedule: true
+            }]
+    },
 ];
 
 let party = false;
