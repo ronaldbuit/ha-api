@@ -83,7 +83,7 @@ let devices = [
             }]
     },
     {
-        topic: 'lampvoor', commands: [
+        topic: 'lampachter', commands: [
             {
                 label: 'Lampje achter',
                 isAll: true,
