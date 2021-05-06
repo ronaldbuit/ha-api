@@ -93,6 +93,19 @@ let devices = [
                 canSchedule: true
             }]
     },
+    {
+        topic: 'lampaanrecht', commands :[
+            {
+                label: 'Lamp aanrecht',
+                isAll: false,
+                visible: true,
+                command: 'POWER',
+                multi: ['POWER1', 'POWER2', 'POWER3', 'POWER4'],
+                status: 'OFF',
+                canSchedule: false
+            }
+        ], sensor: { id: 'Switch1', status: 'OFF' }
+    }
 ];
 
 let party = false;
@@ -108,6 +121,15 @@ exports.init = function() {
                     console.log('connected: ' + s.topic);
                 }
             });
+            if (s.sensor) {
+                client.subscribe('tele/' + s.topic + '/SENSOR', function (err) {
+                    if (err) {
+                        console.log('error sensor: ' + err);
+                    } else {
+                        console.log('connected sensor: ' + s.topic);
+                    }
+                });
+            }
         });
     });
 
@@ -115,17 +137,36 @@ exports.init = function() {
         devices.forEach(function(s) {
             if (topic.indexOf('/' + s.topic + '/') > 0) {
                 let status = JSON.parse(message.toString());
-                Object.getOwnPropertyNames(status).forEach(function(p) {
-                    s.commands.forEach(function(command) {
-                        if (command.command === p) {
-                            command.status = status[p];
-                            if (command.forward && command.forward.action === 'all' && !switchAllOnOff) {
-                                exports.all({value: command.status}, true, command.forward.excludes);
-                            }
-                            switchAllOnOff = false;
+                if (topic.indexOf('tele/') === 0 && s.sensor && message.indexOf(s.sensor.id) > 0) {
+                    s.commands.forEach(function (command) {
+                        if (s.sensor.status !== status[s.sensor.id]) {
+                            s.sensor.status = status[s.sensor.id];
+                            exports.updateDevice({
+                                topic: s.topic,
+                                command: command.command,
+                                value: s.sensor.status
+                            });
                         }
                     });
-                });
+                } else {
+                    Object.getOwnPropertyNames(status).forEach(function (p) {
+                        s.commands.forEach(function (command) {
+                            if (command.command === p) {
+                                command.status = status[p];
+                                if (command.forward && command.forward.action === 'all' && !switchAllOnOff) {
+                                    exports.all({value: command.status}, true, command.forward.excludes);
+                                }
+                                switchAllOnOff = false;
+                            } else if (command.multi && Array.isArray(command.multi)) {
+                                command.multi.forEach(function(m) {
+                                   if (m === p) {
+                                       command.status = status[p];
+                                   }
+                                });
+                            }
+                        });
+                    });
+                }
             }
         });
     });
@@ -196,7 +237,21 @@ exports.all = function(action, forwarded, excludes) {
 }
 
 exports.updateDevice= function(deviceToUpdate) {
-    client.publish('cmnd/' + deviceToUpdate.topic + '/' + deviceToUpdate.command, deviceToUpdate.value);
+    devices.forEach(function(device) {
+        if (device.topic === deviceToUpdate.topic) {
+            device.commands.forEach(function(command) {
+               if (command.command == deviceToUpdate.command) {
+                   if (command.multi && Array.isArray(command.multi)) {
+                       command.multi.forEach(function (m) {
+                           client.publish('cmnd/' + deviceToUpdate.topic + '/' + m, deviceToUpdate.value);
+                       });
+                   } else {
+                       client.publish('cmnd/' + deviceToUpdate.topic + '/' + deviceToUpdate.command, deviceToUpdate.value);
+                   }
+               }
+            });
+        }
+    });
     return deviceToUpdate;
 }
 
